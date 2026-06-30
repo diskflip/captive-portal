@@ -1,7 +1,8 @@
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const PLANS = {
   hour: {
@@ -20,28 +21,32 @@ const PLANS = {
 
 type Plan = keyof typeof PLANS;
 
-export async function GET(req: Request) {
+function getStripe(): Stripe {
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+
+  if (!stripeKey) {
+    throw new Error("STRIPE_SECRET_KEY is missing");
+  }
+
+  return new Stripe(stripeKey);
+}
+
+export async function GET(request: Request): Promise<Response> {
   try {
-    if (!process.env.STRIPE_SECRET_KEY) {
-      return NextResponse.json(
-        { error: "Missing STRIPE_SECRET_KEY" },
-        { status: 500 }
-      );
-    }
+    const url = new URL(request.url);
 
-    const url = new URL(req.url);
-
-    const requestedPlan = url.searchParams.get("plan") || "hour";
+    const requestedPlan = url.searchParams.get("plan");
     const planKey: Plan = requestedPlan === "day" ? "day" : "hour";
     const plan = PLANS[planKey];
 
     const clientReferenceId = (
-      url.searchParams.get("client_reference_id") || "demo-device"
+      url.searchParams.get("client_reference_id") ?? "demo-device"
     ).slice(0, 200);
+
+    const stripe = getStripe();
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-
       payment_method_types: ["card"],
 
       line_items: [
@@ -74,14 +79,16 @@ export async function GET(req: Request) {
     if (!session.url) {
       return NextResponse.json(
         { error: "Stripe did not return a Checkout URL" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     return NextResponse.redirect(session.url, 303);
-  } catch (err) {
+  } catch (error) {
     const message =
-      err instanceof Error ? err.message : "Failed to create Checkout Session";
+      error instanceof Error
+        ? error.message
+        : "Failed to create Checkout Session";
 
     return NextResponse.json({ error: message }, { status: 500 });
   }
