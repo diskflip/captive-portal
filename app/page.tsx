@@ -1,4 +1,4 @@
-import CheckoutRedirect from "./checkout-redirect";
+import EmbeddedCheckoutClient from "./embedded-checkout";
 
 type SearchParamValue = string | string[] | undefined;
 type SearchParams = Promise<Record<string, SearchParamValue>>;
@@ -13,16 +13,13 @@ export default async function Home({
   searchParams: SearchParams;
 }) {
   const params = await searchParams;
-
-  const checkoutParams = new URLSearchParams();
+  const checkoutData: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(params)) {
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        checkoutParams.append(key, item);
-      }
-    } else if (value !== undefined) {
-      checkoutParams.set(key, value);
+    const resolvedValue = first(value);
+
+    if (resolvedValue !== undefined) {
+      checkoutData[key] = resolvedValue;
     }
   }
 
@@ -35,18 +32,15 @@ export default async function Home({
     first(params.cid) ??
     "demo-device";
 
-  const clientReferenceId = rawClientReferenceId
-    .replace(/[^a-zA-Z0-9_.:-]/g, "_")
-    .slice(0, 200);
+  checkoutData.client_reference_id =
+    rawClientReferenceId
+      .replace(/[^a-zA-Z0-9_.:-]/g, "_")
+      .slice(0, 200);
 
-  const plan = first(params.plan) ?? "hour";
-
-  checkoutParams.set("plan", plan);
-  checkoutParams.set("client_reference_id", clientReferenceId);
+  checkoutData.plan =
+    first(params.plan) === "day" ? "day" : "hour";
 
   return (
-    <CheckoutRedirect
-      href={`/api/checkout?${checkoutParams.toString()}`}
-    />
+    <EmbeddedCheckoutClient checkoutData={checkoutData} />
   );
 }

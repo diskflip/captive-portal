@@ -20,6 +20,7 @@ const PLANS = {
 } as const;
 
 type Plan = keyof typeof PLANS;
+type CheckoutBody = Record<string, unknown>;
 
 function getStripe(): Stripe {
   const stripeKey = process.env.STRIPE_SECRET_KEY;
@@ -31,21 +32,66 @@ function getStripe(): Stripe {
   return new Stripe(stripeKey);
 }
 
-export async function GET(request: Request): Promise<Response> {
-  try {
-    const url = new URL(request.url);
+function getString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
 
-    const requestedPlan = url.searchParams.get("plan");
-    const planKey: Plan = requestedPlan === "day" ? "day" : "hour";
+function sanitizeClientReferenceId(value: string): string {
+  return value
+    .replace(/[^a-zA-Z0-9_.:-]/g, "_")
+    .slice(0, 200);
+}
+
+export async function POST(request: Request): Promise<Response> {
+  try {
+    const body = (await request.json()) as CheckoutBody;
+
+    const planKey: Plan =
+      getString(body.plan) === "day" ? "day" : "hour";
+
     const plan = PLANS[planKey];
 
-    const clientReferenceId = (
-      url.searchParams.get("client_reference_id") ?? "demo-device"
-    ).slice(0, 200);
+    const rawClientReferenceId =
+      getString(body.client_reference_id) ??
+      getString(body.ga_cmac) ??
+      "demo-device";
+
+    const clientReferenceId = sanitizeClientReferenceId(
+      rawClientReferenceId,
+    );
+
+    const metadata: Record<string, string> = {
+      source: "wifi_portal",
+      plan: planKey,
+      access_minutes: String(plan.accessMinutes),
+      client_reference_id: clientReferenceId,
+    };
+
+    const cambiumFields = [
+      "ga_cmac",
+      "ga_ssid",
+      "ga_ap_mac",
+      "ga_nas_id",
+      "ga_srvr",
+      "ga_orig_url",
+      "ga_cip",
+      "ga_Qv",
+      "s",
+    ];
+
+    for (const key of cambiumFields) {
+      const value = getString(body[key]);
+
+      if (value) {
+        metadata[key] = value.slice(0, 500);
+      }
+    }
 
     const stripe = getStripe();
+    const origin = new URL(request.url).origin;
 
     const session = await stripe.checkout.sessions.create({
+      ui_mode: "embedded_page",
       mode: "payment",
       payment_method_types: ["card"],
 
@@ -63,33 +109,34 @@ export async function GET(request: Request): Promise<Response> {
         },
       ],
 
-      success_url: `${url.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${url.origin}/canceled`,
+      return_url:
+        `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+
+      redirect_on_completion: "always",
 
       client_reference_id: clientReferenceId,
-
-      metadata: {
-        source: "wifi_portal",
-        plan: planKey,
-        access_minutes: String(plan.accessMinutes),
-        client_reference_id: clientReferenceId,
-      },
+      metadata,
     });
 
-    if (!session.url) {
+    if (!session.client_secret) {
       return NextResponse.json(
-        { error: "Stripe did not return a Checkout URL" },
+        { error: "Stripe did not return a client secret" },
         { status: 500 },
       );
     }
 
-    return NextResponse.redirect(session.url, 303);
+    return NextResponse.json({
+      clientSecret: session.client_secret,
+    });
   } catch (error) {
     const message =
       error instanceof Error
         ? error.message
         : "Failed to create Checkout Session";
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: 500 },
+    );
   }
 }
