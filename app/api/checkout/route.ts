@@ -93,7 +93,7 @@ export async function POST(request: Request): Promise<Response> {
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded_page",
       mode: "payment",
-      payment_method_types: ["card"],
+      submit_type: "pay",
 
       line_items: [
         {
@@ -120,8 +120,12 @@ export async function POST(request: Request): Promise<Response> {
 
     if (!session.client_secret) {
       return NextResponse.json(
-        { error: "Stripe did not return a client secret" },
-        { status: 500 },
+        {
+          error: "Stripe did not return a client secret",
+        },
+        {
+          status: 500,
+        },
       );
     }
 
@@ -135,8 +139,12 @@ export async function POST(request: Request): Promise<Response> {
         : "Failed to create Checkout Session";
 
     return NextResponse.json(
-      { error: message },
-      { status: 500 },
+      {
+        error: message,
+      },
+      {
+        status: 500,
+      },
     );
   }
 }
