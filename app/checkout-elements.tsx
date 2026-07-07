@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import {
@@ -62,10 +62,6 @@ function CheckoutForm() {
 
   const { checkout } = checkoutState;
 
-  /*
-   * Stripe requires the live Checkout Session total
-   * to be read and displayed before checkout.confirm().
-   */
   const amount = checkout.total.total.amount;
 
   const passName =
@@ -126,22 +122,12 @@ function CheckoutForm() {
         <div className="mt-6">
           <ExpressCheckoutElement
             options={{
-              /*
-               * These undefined properties are present because
-               * the current Stripe TypeScript definition expects
-               * the complete options shape.
-               */
               buttonHeight: undefined,
               buttonTheme: undefined,
               buttonType: undefined,
               layout: undefined,
               paymentMethodOrder: undefined,
 
-              /*
-               * Stripe still performs the eligibility check.
-               * "always" means offer Apple Pay whenever the
-               * current platform is actually supported.
-               */
               paymentMethods: {
                 applePay: "always",
               },
@@ -214,15 +200,29 @@ function CheckoutForm() {
 export default function CheckoutElementsClient({
   checkoutData,
 }: CheckoutElementsClientProps) {
-  const clientSecret = useMemo(
-    () =>
-      fetch("/api/checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(checkoutData),
-      }).then(async (response) => {
+  const [clientSecret, setClientSecret] =
+    useState<string | null>(null);
+
+  const [loadError, setLoadError] =
+    useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function createCheckoutSession() {
+      try {
+        setLoadError(null);
+
+        const response = await fetch("/api/checkout", {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify(checkoutData),
+        });
+
         const data = (await response.json()) as {
           clientSecret?: string;
           error?: string;
@@ -234,27 +234,26 @@ export default function CheckoutElementsClient({
           );
         }
 
-        return data.clientSecret;
-      }),
-    [checkoutData],
-  );
+        if (!cancelled) {
+          setClientSecret(data.clientSecret);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Unable to start checkout",
+          );
+        }
+      }
+    }
 
-  const providerOptions = useMemo(
-    () => ({
-      clientSecret,
+    void createCheckoutSession();
 
-      elementsOptions: {
-        appearance: {
-          theme: "stripe" as const,
-
-          variables: {
-            borderRadius: "12px",
-          },
-        },
-      },
-    }),
-    [clientSecret],
-  );
+    return () => {
+      cancelled = true;
+    };
+  }, [checkoutData]);
 
   if (!stripePromise) {
     return (
@@ -273,10 +272,56 @@ export default function CheckoutElementsClient({
     );
   }
 
+  if (loadError) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-neutral-100 px-5 py-8 text-neutral-950">
+        <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-sm">
+          <h1 className="text-xl font-semibold">
+            Checkout unavailable
+          </h1>
+
+          <p className="mt-2 text-sm text-red-700">
+            {loadError}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-5 w-full rounded-xl bg-neutral-950 px-4 py-3 font-medium text-white"
+          >
+            Try again
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (!clientSecret) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-neutral-100 px-5 py-8 text-neutral-950">
+        <p className="text-sm text-neutral-600">
+          Loading secure checkout…
+        </p>
+      </main>
+    );
+  }
+
   return (
     <CheckoutElementsProvider
       stripe={stripePromise}
-      options={providerOptions}
+      options={{
+        clientSecret,
+
+        elementsOptions: {
+          appearance: {
+            theme: "stripe",
+
+            variables: {
+              borderRadius: "12px",
+            },
+          },
+        },
+      }}
     >
       <CheckoutForm />
     </CheckoutElementsProvider>
