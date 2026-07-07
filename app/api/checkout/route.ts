@@ -32,25 +32,6 @@ function getStripe(): Stripe {
   return new Stripe(stripeKey);
 }
 
-function getPublishableKey(): string {
-  const publishableKey =
-    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim();
-
-  if (
-    !publishableKey ||
-    !(
-      publishableKey.startsWith("pk_test_") ||
-      publishableKey.startsWith("pk_live_")
-    )
-  ) {
-    throw new Error(
-      "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is missing or invalid",
-    );
-  }
-
-  return publishableKey;
-}
-
 function getString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
@@ -107,11 +88,9 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const stripe = getStripe();
-    const publishableKey = getPublishableKey();
     const origin = new URL(request.url).origin;
 
     const session = await stripe.checkout.sessions.create({
-      ui_mode: "elements",
       mode: "payment",
 
       line_items: [
@@ -128,22 +107,22 @@ export async function POST(request: Request): Promise<Response> {
         },
       ],
 
-      return_url:
+      success_url:
         `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/canceled`,
 
       client_reference_id: clientReferenceId,
       metadata,
     });
 
-    if (!session.client_secret) {
+    if (!session.url) {
       throw new Error(
-        "Stripe did not return a Checkout Session client secret",
+        "Stripe did not return a hosted Checkout URL",
       );
     }
 
     return NextResponse.json({
-      clientSecret: session.client_secret,
-      publishableKey,
+      url: session.url,
     });
   } catch (error) {
     const message =
