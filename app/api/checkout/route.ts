@@ -91,9 +91,8 @@ export async function POST(request: Request): Promise<Response> {
     const origin = new URL(request.url).origin;
 
     const session = await stripe.checkout.sessions.create({
-      ui_mode: "embedded_page",
+      ui_mode: "elements",
       mode: "payment",
-      submit_type: "pay",
 
       line_items: [
         {
@@ -111,8 +110,6 @@ export async function POST(request: Request): Promise<Response> {
 
       return_url:
         `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
-
-      redirect_on_completion: "always",
 
       client_reference_id: clientReferenceId,
       metadata,

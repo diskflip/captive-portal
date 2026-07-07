@@ -1,4 +1,4 @@
-import EmbeddedCheckoutClient from "./embedded-checkout";
+import CheckoutElementsClient from "./checkout-elements";
 
 type SearchParamValue = string | string[] | undefined;
 type SearchParams = Promise<Record<string, SearchParamValue>>;
@@ -41,6 +41,6 @@ export default async function Home({
     first(params.plan) === "day" ? "day" : "hour";
 
   return (
-    <EmbeddedCheckoutClient checkoutData={checkoutData} />
+    <CheckoutElementsClient checkoutData={checkoutData} />
   );
 }
