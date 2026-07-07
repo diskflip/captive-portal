@@ -23,13 +23,32 @@ type Plan = keyof typeof PLANS;
 type CheckoutBody = Record<string, unknown>;
 
 function getStripe(): Stripe {
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  const stripeKey = process.env.STRIPE_SECRET_KEY?.trim();
 
   if (!stripeKey) {
     throw new Error("STRIPE_SECRET_KEY is missing");
   }
 
   return new Stripe(stripeKey);
+}
+
+function getPublishableKey(): string {
+  const publishableKey =
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim();
+
+  if (
+    !publishableKey ||
+    !(
+      publishableKey.startsWith("pk_test_") ||
+      publishableKey.startsWith("pk_live_")
+    )
+  ) {
+    throw new Error(
+      "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is missing or invalid",
+    );
+  }
+
+  return publishableKey;
 }
 
 function getString(value: unknown): string | undefined {
@@ -88,6 +107,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const stripe = getStripe();
+    const publishableKey = getPublishableKey();
     const origin = new URL(request.url).origin;
 
     const session = await stripe.checkout.sessions.create({
@@ -116,18 +136,14 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     if (!session.client_secret) {
-      return NextResponse.json(
-        {
-          error: "Stripe did not return a client secret",
-        },
-        {
-          status: 500,
-        },
+      throw new Error(
+        "Stripe did not return a Checkout Session client secret",
       );
     }
 
     return NextResponse.json({
       clientSecret: session.client_secret,
+      publishableKey,
     });
   } catch (error) {
     const message =

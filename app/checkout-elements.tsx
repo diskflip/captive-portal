@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import type { FormEvent } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import {
@@ -11,16 +15,11 @@ import {
   useCheckoutElements,
 } from "@stripe/react-stripe-js/checkout";
 
-const publishableKey =
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-
-const stripePromise = publishableKey
-  ? loadStripe(publishableKey)
-  : null;
-
 type CheckoutElementsClientProps = {
   checkoutData: Record<string, string>;
 };
+
+type StripePromise = ReturnType<typeof loadStripe>;
 
 function CheckoutForm() {
   const checkoutState = useCheckoutElements();
@@ -203,74 +202,128 @@ export default function CheckoutElementsClient({
   const [clientSecret, setClientSecret] =
     useState<string | null>(null);
 
+  const [stripePromise, setStripePromise] =
+    useState<StripePromise | null>(null);
+
   const [loadError, setLoadError] =
     useState<string | null>(null);
 
+  const checkoutPayload = useMemo(
+    () => JSON.stringify(checkoutData),
+    [checkoutData],
+  );
+
+  const providerOptions = useMemo(() => {
+    if (!clientSecret) {
+      return null;
+    }
+
+    return {
+      clientSecret,
+
+      elementsOptions: {
+        appearance: {
+          theme: "stripe" as const,
+
+          variables: {
+            borderRadius: "12px",
+          },
+        },
+      },
+    };
+  }, [clientSecret]);
+
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     async function createCheckoutSession() {
       try {
         setLoadError(null);
 
-        const response = await fetch("/api/checkout", {
-          method: "POST",
+        /*
+         * Always construct an absolute URL.
+         * This removes the Vercel/Node relative-URL failure.
+         */
+        const checkoutUrl = new URL(
+          "/api/checkout",
+          window.location.origin,
+        );
 
-          headers: {
-            "Content-Type": "application/json",
+        const response = await fetch(
+          checkoutUrl.toString(),
+          {
+            method: "POST",
+            cache: "no-store",
+            signal: controller.signal,
+
+            headers: {
+              "Content-Type": "application/json",
+            },
+
+            body: checkoutPayload,
           },
-
-          body: JSON.stringify(checkoutData),
-        });
+        );
 
         const data = (await response.json()) as {
           clientSecret?: string;
+          publishableKey?: string;
           error?: string;
         };
 
-        if (!response.ok || !data.clientSecret) {
+        if (!response.ok) {
           throw new Error(
-            data.error ?? "Unable to start checkout",
+            data.error ??
+            `Checkout request failed with status ${response.status}`,
           );
         }
 
-        if (!cancelled) {
-          setClientSecret(data.clientSecret);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setLoadError(
-            error instanceof Error
-              ? error.message
-              : "Unable to start checkout",
+        if (!data.clientSecret) {
+          throw new Error(
+            "Checkout API did not return a client secret",
           );
         }
+
+        const publishableKey =
+          data.publishableKey?.trim();
+
+        if (
+          !publishableKey ||
+          !(
+            publishableKey.startsWith("pk_test_") ||
+            publishableKey.startsWith("pk_live_")
+          )
+        ) {
+          throw new Error(
+            "Checkout API did not return a valid Stripe publishable key",
+          );
+        }
+
+        const stripe = loadStripe(publishableKey);
+
+        setStripePromise(stripe);
+        setClientSecret(data.clientSecret);
+      } catch (error) {
+        if (
+          error instanceof DOMException &&
+          error.name === "AbortError"
+        ) {
+          return;
+        }
+
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Unable to start checkout",
+        );
       }
     }
 
     void createCheckoutSession();
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
-  }, [checkoutData]);
-
-  if (!stripePromise) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-neutral-100 px-5 py-8 text-neutral-950">
-        <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-sm">
-          <h1 className="text-xl font-semibold">
-            Checkout unavailable
-          </h1>
-
-          <p className="mt-2 text-sm text-red-700">
-            NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is
-            missing.
-          </p>
-        </div>
-      </main>
-    );
-  }
+  }, [checkoutPayload]);
 
   if (loadError) {
     return (
@@ -280,7 +333,7 @@ export default function CheckoutElementsClient({
             Checkout unavailable
           </h1>
 
-          <p className="mt-2 text-sm text-red-700">
+          <p className="mt-2 break-words text-sm text-red-700">
             {loadError}
           </p>
 
@@ -296,7 +349,11 @@ export default function CheckoutElementsClient({
     );
   }
 
-  if (!clientSecret) {
+  if (
+    !stripePromise ||
+    !clientSecret ||
+    !providerOptions
+  ) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-neutral-100 px-5 py-8 text-neutral-950">
         <p className="text-sm text-neutral-600">
@@ -309,19 +366,7 @@ export default function CheckoutElementsClient({
   return (
     <CheckoutElementsProvider
       stripe={stripePromise}
-      options={{
-        clientSecret,
-
-        elementsOptions: {
-          appearance: {
-            theme: "stripe",
-
-            variables: {
-              borderRadius: "12px",
-            },
-          },
-        },
-      }}
+      options={providerOptions}
     >
       <CheckoutForm />
     </CheckoutElementsProvider>
