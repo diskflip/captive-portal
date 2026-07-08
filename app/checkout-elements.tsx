@@ -19,6 +19,9 @@ export default function CheckoutElementsClient({
 
   useEffect(() => {
     const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      controller.abort();
+    }, 15000);
 
     async function createCheckoutSession() {
       try {
@@ -68,6 +71,9 @@ export default function CheckoutElementsClient({
           error instanceof DOMException &&
           error.name === "AbortError"
         ) {
+          setLoadError(
+            "Checkout took too long to start. Please try again.",
+          );
           return;
         }
 
@@ -82,25 +88,18 @@ export default function CheckoutElementsClient({
     void createCheckoutSession();
 
     return () => {
+      window.clearTimeout(timeout);
       controller.abort();
     };
   }, [checkoutPayload]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-neutral-100 px-5 py-8 text-neutral-950">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 text-center shadow-sm">
-        <p className="text-sm font-medium text-neutral-500">
-          Events WiFi
-        </p>
-
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-          Redirecting to secure checkout
-        </h1>
-
+    <main className="flex min-h-screen items-center justify-center bg-white px-5 py-8 text-neutral-950">
+      <div className="w-full max-w-xs text-center">
         {loadError ? (
           <>
             <p
-              className="mt-4 break-words text-sm text-red-700"
+              className="break-words text-sm text-red-700"
               role="alert"
             >
               {loadError}
@@ -109,15 +108,16 @@ export default function CheckoutElementsClient({
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="mt-6 w-full rounded-xl bg-neutral-950 px-4 py-4 font-medium text-white"
+              className="mt-5 w-full rounded-xl bg-neutral-950 px-4 py-3 text-sm font-medium text-white"
             >
               Try again
             </button>
           </>
         ) : (
-          <p className="mt-3 text-sm text-neutral-600">
-            Opening Stripe Checkout…
-          </p>
+          <div
+            className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-950"
+            aria-label="Opening checkout"
+          />
         )}
       </div>
     </main>
