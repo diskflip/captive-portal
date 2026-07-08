@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { connection } from "next/server";
+import { redirect } from "next/navigation";
 import Stripe from "stripe";
+import { loginToCambiumEasyPass } from "../lib/cambium-easypass";
 
 export const runtime = "nodejs";
 
@@ -11,7 +13,6 @@ export default async function SuccessPage({
     session_id?: string | string[];
   }>;
 }) {
-  // Stop Next from evaluating the Stripe-dependent code during prerendering.
   await connection();
 
   const params = await searchParams;
@@ -60,29 +61,68 @@ export default async function SuccessPage({
     );
   }
 
+  let accessResult:
+    | Awaited<ReturnType<typeof loginToCambiumEasyPass>>
+    | undefined;
+  let accessError: string | undefined;
+
+  try {
+    accessResult = await loginToCambiumEasyPass(session.metadata ?? {});
+  } catch (error) {
+    accessError =
+      error instanceof Error
+        ? error.message
+        : "Unable to activate WiFi access.";
+  }
+
+  if (accessResult?.redirectUrl) {
+    redirect(accessResult.redirectUrl);
+  }
+
   return (
     <main className="min-h-screen bg-white px-6 py-10 text-neutral-950">
       <div className="mx-auto max-w-sm text-center">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Payment complete
-        </h1>
+        {accessError ? (
+          <>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Payment complete
+            </h1>
 
-        <p className="mt-3 text-sm text-neutral-600">
-          Your WiFi pass has been purchased successfully.
-        </p>
+            <p className="mt-3 text-sm text-red-700">
+              {accessError}
+            </p>
 
-        {session.metadata?.plan && (
-          <p className="mt-4 text-sm text-neutral-500">
-            Plan: {session.metadata.plan}
-          </p>
+            <Link
+              href={`/success?session_id=${encodeURIComponent(sessionId)}`}
+              className="mt-8 block rounded-xl bg-neutral-950 px-4 py-4 font-medium text-white"
+            >
+              Try activating again
+            </Link>
+          </>
+        ) : (
+          <>
+            <h1 className="text-3xl font-semibold tracking-tight">
+              WiFi access active
+            </h1>
+
+            <p className="mt-3 text-sm text-neutral-600">
+              Your payment is complete and your device has been authorized.
+            </p>
+
+            {accessResult?.expiry && (
+              <p className="mt-4 text-sm text-neutral-500">
+                Session: {Math.round(accessResult.expiry / 60)} minutes
+              </p>
+            )}
+
+            <a
+              href="https://google.com"
+              className="mt-8 block rounded-xl bg-neutral-950 px-4 py-4 font-medium text-white"
+            >
+              Continue to internet
+            </a>
+          </>
         )}
-
-        <a
-          href="https://google.com"
-          className="mt-8 block rounded-xl bg-neutral-950 px-4 py-4 font-medium text-white"
-        >
-          Continue to internet
-        </a>
       </div>
     </main>
   );
