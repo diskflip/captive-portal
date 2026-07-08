@@ -1,4 +1,6 @@
-import CheckoutElementsClient from "./checkout-elements";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { createCheckoutSessionUrl } from "./lib/checkout-session";
 
 type SearchParamValue = string | string[] | undefined;
 type SearchParams = Promise<Record<string, SearchParamValue>>;
@@ -12,6 +14,7 @@ export default async function Home({
 }: {
   searchParams: SearchParams;
 }) {
+  const requestHeaders = await headers();
   const params = await searchParams;
   const checkoutData: Record<string, string> = {};
 
@@ -40,7 +43,18 @@ export default async function Home({
   checkoutData.plan =
     first(params.plan) === "day" ? "day" : "hour";
 
-  return (
-    <CheckoutElementsClient checkoutData={checkoutData} />
+  const host = requestHeaders.get("host");
+  const protocol =
+    requestHeaders.get("x-forwarded-proto") ?? "https";
+
+  if (!host) {
+    throw new Error("Missing request host");
+  }
+
+  redirect(
+    await createCheckoutSessionUrl(
+      checkoutData,
+      `${protocol}://${host}`,
+    ),
   );
 }
