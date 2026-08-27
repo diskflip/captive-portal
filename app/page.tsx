@@ -1,6 +1,8 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { isCaptiveBrowser } from "./lib/captive";
-import { GA_FIELDS, PLANS, PLAN_KEYS } from "./lib/plans";
+import { createCheckoutSessionUrl } from "./lib/checkout-session";
+import { GA_FIELDS, toPlanKey } from "./lib/plans";
 
 type SearchParamValue = string | string[] | undefined;
 type SearchParams = Promise<Record<string, SearchParamValue>>;
@@ -18,10 +20,6 @@ export default async function Home({
 }) {
   const params = await searchParams;
   const requestHeaders = await headers();
-
-  const captive = isCaptiveBrowser(
-    requestHeaders.get("user-agent") ?? "",
-  );
 
   const fields: Record<string, string> = {};
 
@@ -52,66 +50,23 @@ export default async function Home({
     );
   }
 
-  return (
-    <main className="min-h-screen bg-white px-6 py-12 text-neutral-950">
-      <div className="mx-auto flex max-w-sm flex-col">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Get online
-        </h1>
+  const host = requestHeaders.get("host");
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? "https";
 
-        <p className="mt-2 text-sm text-neutral-600">
-          Choose a pass. Your device is connected once payment
-          completes.
-        </p>
+  if (!host) {
+    throw new Error("Missing request host");
+  }
 
-        <form
-          method="POST"
-          action="/api/checkout"
-          className="mt-8 flex flex-col gap-3"
-        >
-          {GA_FIELDS.map((key) =>
-            fields[key] ? (
-              <input
-                key={key}
-                type="hidden"
-                name={key}
-                value={fields[key]}
-              />
-            ) : null,
-          )}
+  const captive = isCaptiveBrowser(
+    requestHeaders.get("user-agent") ?? "",
+  );
 
-          {PLAN_KEYS.map((key) => (
-            <button
-              key={key}
-              type="submit"
-              name="plan"
-              value={key}
-              className="flex items-center justify-between rounded-xl bg-neutral-950 px-5 py-5 text-left text-white"
-            >
-              <span className="font-medium">
-                {PLANS[key].label}
-              </span>
-
-              <span className="text-lg font-semibold">
-                {PLANS[key].price}
-              </span>
-            </button>
-          ))}
-        </form>
-
-        {captive ? (
-          <p className="mt-6 text-xs leading-relaxed text-neutral-500">
-            Card payment only on this screen. Saved cards
-            autofill from your keyboard. To pay with Apple Pay,
-            close this window and open this page in Safari.
-          </p>
-        ) : null}
-
-        <p className="mt-6 text-xs text-neutral-400">
-          One device per pass. No refunds after your session
-          starts.
-        </p>
-      </div>
-    </main>
+  redirect(
+    await createCheckoutSessionUrl(
+      toPlanKey(first(params.plan)),
+      fields,
+      `${protocol}://${host}`,
+      captive,
+    ),
   );
 }
