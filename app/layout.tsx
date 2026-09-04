@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Event WiFi",
-  description: "Purchase event WiFi access",
+  title: "WiFi",
+  description: "WiFi",
 };
 
 export default function RootLayout({

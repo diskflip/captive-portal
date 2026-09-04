@@ -24,7 +24,7 @@ export default async function Home({
     }
   }
 
-  const ssid = fields.ga_ssid ?? "the event WiFi";
+  const ssid = fields.ga_ssid ?? "WiFi";
   const hasRequiredFields = REQUIRED_GA_FIELDS.every((key) => fields[key]);
   const checkoutFailed = Boolean(first(params.error));
 
@@ -50,7 +50,7 @@ export default async function Home({
   return (
     <main className="min-h-screen bg-white px-6 py-12 text-neutral-950">
       <div className="mx-auto max-w-sm text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">Event WiFi</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">WiFi</h1>
 
         {checkoutFailed ? (
           <p className="mt-3 text-sm text-red-700">

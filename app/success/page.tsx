@@ -105,15 +105,7 @@ export default async function SuccessPage({
             </Link>
           </>
         ) : (
-          <>
-            <h1 className="text-3xl font-semibold tracking-tight">
-              ✓ You&apos;re online
-            </h1>
-
-            <p className="mt-3 text-sm text-neutral-600">
-              Internet access is active.
-            </p>
-          </>
+          <h1 className="text-3xl font-semibold tracking-tight">Online</h1>
         )}
       </div>
     </main>
