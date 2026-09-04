@@ -4,13 +4,13 @@ import { joinUrl } from "../app/lib/cambium-easypass.ts";
 const cases: Array<[base: string, path: string, expected: string]> = [
   [
     "https://us-e1.api.cloud.cambiumnetworks.com",
-    "api/v2/ext-portals/login",
-    "https://us-e1.api.cloud.cambiumnetworks.com/api/v2/ext-portals/login",
+    "api/v1/easypass/external-portal/login",
+    "https://us-e1.api.cloud.cambiumnetworks.com/api/v1/easypass/external-portal/login",
   ],
   [
     "https://us-e1.api.cloud.cambiumnetworks.com/",
-    "api/v2/ext-portals/login",
-    "https://us-e1.api.cloud.cambiumnetworks.com/api/v2/ext-portals/login",
+    "api/v1/easypass/external-portal/login",
+    "https://us-e1.api.cloud.cambiumnetworks.com/api/v1/easypass/external-portal/login",
   ],
 ];
 

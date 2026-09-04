@@ -50,8 +50,8 @@ function requiredValue(
 // already include a path prefix. Join relative to the base's directory
 // instead so the prefix survives.
 //
-// joinUrl("https://us-e1.api.cloud.cambiumnetworks.com", "api/v2/ext-portals/login")
-//   -> "https://us-e1.api.cloud.cambiumnetworks.com/api/v2/ext-portals/login"
+// joinUrl("https://us-e1.api.cloud.cambiumnetworks.com", "api/v1/easypass/external-portal/login")
+//   -> "https://us-e1.api.cloud.cambiumnetworks.com/api/v1/easypass/external-portal/login"
 // Checked by scripts/check-cambium-url.ts.
 export function joinUrl(baseUrl: string, relativePath: string): string {
   const trimmedBase = baseUrl.trim();
@@ -69,23 +69,26 @@ export async function loginToCambiumEasyPass(
   const gaUser = requiredEnv("CAMBIUM_EASYPASS_GA_USER");
   const gaPass = requiredEnv("CAMBIUM_EASYPASS_GA_PASS");
 
-  const response = await fetch(joinUrl(baseUrl, "api/v2/ext-portals/login"), {
-    method: "POST",
-    cache: "no-store",
+  const response = await fetch(
+    joinUrl(baseUrl, "api/v1/easypass/external-portal/login"),
+    {
+      method: "POST",
+      cache: "no-store",
 
-    headers: {
-      Authorization: `Bearer ${secretKey}`,
-      "Content-Type": "application/json",
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        "Content-Type": "application/json",
+      },
+
+      body: JSON.stringify({
+        ga_ap_mac: requiredValue(metadata.ga_ap_mac, "ga_ap_mac"),
+        ga_cmac: requiredValue(metadata.ga_cmac, "ga_cmac"),
+        ga_Qv: requiredValue(metadata.ga_Qv, "ga_Qv"),
+        ga_user: gaUser,
+        ga_pass: gaPass,
+      }),
     },
-
-    body: JSON.stringify({
-      ga_ap_mac: requiredValue(metadata.ga_ap_mac, "ga_ap_mac"),
-      ga_cmac: requiredValue(metadata.ga_cmac, "ga_cmac"),
-      ga_Qv: requiredValue(metadata.ga_Qv, "ga_Qv"),
-      ga_user: gaUser,
-      ga_pass: gaPass,
-    }),
-  });
+  );
 
   let payload: CambiumLoginResponse | undefined;
 
@@ -112,8 +115,16 @@ export async function loginToCambiumEasyPass(
     );
   }
 
+  const expiry = data?.expiry ?? data?.Expiry;
+
+  console.log("cnMaestro login succeeded:", {
+    httpStatus: response.status,
+    dataStatus: status,
+    expiry,
+  });
+
   return {
-    expiry: data?.expiry ?? data?.Expiry,
+    expiry,
     redirectUrl: data?.extURL || undefined,
     message: data?.msg ?? data?.Msg,
   };
