@@ -65,7 +65,7 @@ export async function loginToCambiumEasyPass(
   const gaUser = requiredEnv("CAMBIUM_EASYPASS_GA_USER");
   const gaPass = requiredEnv("CAMBIUM_EASYPASS_GA_PASS");
 
-  const response = await fetch(joinUrl(baseUrl, "ext-portals/login"), {
+  const response = await fetch(joinUrl(baseUrl, "api/v2/ext-portals/login"), {
     method: "POST",
     cache: "no-store",
 

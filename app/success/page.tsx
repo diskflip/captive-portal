@@ -90,42 +90,29 @@ export default async function SuccessPage({
         {accessError ? (
           <>
             <h1 className="text-2xl font-semibold tracking-tight">
-              Payment complete
+              Payment received
             </h1>
 
-            <p className="mt-3 text-sm text-red-700">
-              {accessError}
+            <p className="mt-3 text-sm text-neutral-600">
+              We couldn&apos;t activate your WiFi yet.
             </p>
 
             <Link
               href={`/success?session_id=${encodeURIComponent(sessionId)}`}
               className="mt-8 block rounded-xl bg-neutral-950 px-4 py-4 font-medium text-white"
             >
-              Try activating again
+              Try again
             </Link>
           </>
         ) : (
           <>
             <h1 className="text-3xl font-semibold tracking-tight">
-              WiFi access active
+              ✓ You&apos;re online
             </h1>
 
             <p className="mt-3 text-sm text-neutral-600">
-              Your payment is complete and your device has been authorized.
+              Internet access is active.
             </p>
-
-            {accessResult?.expiry && (
-              <p className="mt-4 text-sm text-neutral-500">
-                Session: {Math.round(accessResult.expiry / 60)} minutes
-              </p>
-            )}
-
-            <a
-              href="https://google.com"
-              className="mt-8 block rounded-xl bg-neutral-950 px-4 py-4 font-medium text-white"
-            >
-              Continue to internet
-            </a>
           </>
         )}
       </div>
