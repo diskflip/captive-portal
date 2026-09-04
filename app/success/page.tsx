@@ -69,6 +69,11 @@ export default async function SuccessPage({
   try {
     accessResult = await loginToCambiumEasyPass(session.metadata ?? {});
   } catch (error) {
+    console.error(
+      "cnMaestro authorization failed:",
+      error instanceof Error ? error.message : "unknown error",
+    );
+
     accessError =
       error instanceof Error
         ? error.message

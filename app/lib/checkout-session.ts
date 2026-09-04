@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import { PLANS, type PlanKey } from "./plans";
+import { PLAN, REQUIRED_GA_FIELDS } from "./plans";
 
 type CheckoutFields = Record<string, string>;
 
@@ -14,25 +14,10 @@ function getStripe(): Stripe {
 }
 
 function sanitizeClientReferenceId(value: string): string {
-  return value
-    .replace(/[^a-zA-Z0-9_.:-]/g, "_")
-    .slice(0, 200);
+  return value.replace(/[^a-zA-Z0-9_.:-]/g, "_").slice(0, 200);
 }
 
-function paymentMethodConfiguration(
-  captive: boolean,
-): string | undefined {
-  const value = captive
-    ? process.env.STRIPE_PMC_CAPTIVE
-    : process.env.STRIPE_PMC_BROWSER;
-
-  return value?.trim() || undefined;
-}
-
-function cancelUrl(
-  origin: string,
-  fields: CheckoutFields,
-): string {
+function portalUrl(origin: string, fields: CheckoutFields): string {
   const target = new URL("/", origin);
 
   for (const [key, value] of Object.entries(fields)) {
@@ -43,61 +28,51 @@ function cancelUrl(
 }
 
 export async function createCheckoutSessionUrl(
-  planKey: PlanKey,
   fields: CheckoutFields,
-  origin: string,
-  captive: boolean,
+  requestOrigin: string,
 ): Promise<string> {
-  const plan = PLANS[planKey];
-  const clientMac = fields.ga_cmac?.trim();
-
-  if (!clientMac) {
-    throw new Error("ga_cmac is missing from the portal session");
+  for (const key of REQUIRED_GA_FIELDS) {
+    if (!fields[key]?.trim()) {
+      throw new Error(`${key} is missing from the portal session`);
+    }
   }
 
-  const configuration = paymentMethodConfiguration(captive);
+  const appUrl = (process.env.APP_URL?.trim() || requestOrigin).replace(
+    /\/+$/,
+    "",
+  );
 
   const session = await getStripe().checkout.sessions.create({
     mode: "payment",
-
-    ...(configuration
-      ? { payment_method_configuration: configuration }
-      : {}),
 
     line_items: [
       {
         price_data: {
           currency: "usd",
-          unit_amount: plan.unitAmount,
+          unit_amount: PLAN.unitAmount,
           product_data: {
-            name: plan.name,
-            description: plan.description,
+            name: PLAN.name,
+            description: PLAN.description,
           },
         },
         quantity: 1,
       },
     ],
 
-    success_url:
-      `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: cancelUrl(origin, fields),
+    success_url: `${appUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: portalUrl(requestOrigin, fields),
 
-    client_reference_id: sanitizeClientReferenceId(clientMac),
+    client_reference_id: sanitizeClientReferenceId(fields.ga_cmac),
 
     metadata: {
-      plan: planKey,
-      access_minutes: String(plan.accessMinutes),
-      ga_cmac: clientMac,
-      ga_ap_mac: fields.ga_ap_mac?.slice(0, 500) ?? "",
-      ga_Qv: fields.ga_Qv?.slice(0, 500) ?? "",
-      ga_orig_url: fields.ga_orig_url?.slice(0, 400) ?? "",
+      ga_cmac: fields.ga_cmac,
+      ga_ap_mac: fields.ga_ap_mac,
+      ga_Qv: fields.ga_Qv,
     },
   });
 
   if (!session.url) {
-    throw new Error(
-      "Stripe did not return a hosted Checkout URL",
-    );
+    throw new Error("Stripe did not return a hosted Checkout URL");
   }
 
   return session.url;

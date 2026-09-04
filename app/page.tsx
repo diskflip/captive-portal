@@ -1,13 +1,7 @@
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { isCaptiveBrowser } from "./lib/captive";
-import { createCheckoutSessionUrl } from "./lib/checkout-session";
-import { GA_FIELDS, toPlanKey } from "./lib/plans";
+import { GA_FIELDS, PLAN, REQUIRED_GA_FIELDS } from "./lib/plans";
 
 type SearchParamValue = string | string[] | undefined;
 type SearchParams = Promise<Record<string, SearchParamValue>>;
-
-export const dynamic = "force-dynamic";
 
 function first(value: SearchParamValue): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -19,7 +13,6 @@ export default async function Home({
   searchParams: SearchParams;
 }) {
   const params = await searchParams;
-  const requestHeaders = await headers();
 
   const fields: Record<string, string> = {};
 
@@ -31,42 +24,58 @@ export default async function Home({
     }
   }
 
-  const ssid = fields.ga_ssid ?? "the WiFi network";
+  const ssid = fields.ga_ssid ?? "the event WiFi";
+  const missingRequired = REQUIRED_GA_FIELDS.some((key) => !fields[key]);
+  const checkoutFailed = Boolean(first(params.error));
 
-  if (!fields.ga_cmac) {
+  if (missingRequired) {
     return (
       <main className="min-h-screen bg-white px-6 py-12 text-neutral-950">
         <div className="mx-auto max-w-sm text-center">
           <h1 className="text-2xl font-semibold tracking-tight">
-            Join the WiFi first
+            Join {ssid} first
           </h1>
 
           <p className="mt-3 text-sm text-neutral-600">
-            Open your WiFi settings, connect to {ssid}, then
-            return to this page.
+            This page didn&apos;t open through the WiFi portal. Reconnect to{" "}
+            {ssid} and try again.
           </p>
         </div>
       </main>
     );
   }
 
-  const host = requestHeaders.get("host");
-  const protocol = requestHeaders.get("x-forwarded-proto") ?? "https";
+  return (
+    <main className="min-h-screen bg-white px-6 py-12 text-neutral-950">
+      <div className="mx-auto flex max-w-sm flex-col items-center text-center">
+        <h1 className="text-2xl font-semibold tracking-tight">Event WiFi</h1>
 
-  if (!host) {
-    throw new Error("Missing request host");
-  }
+        <p className="mt-2 text-sm text-neutral-600">Fast Internet Access</p>
 
-  const captive = isCaptiveBrowser(
-    requestHeaders.get("user-agent") ?? "",
-  );
+        <p className="mt-6 text-3xl font-semibold">{PLAN.priceLabel}</p>
+        <p className="text-sm text-neutral-500">Event Pass</p>
 
-  redirect(
-    await createCheckoutSessionUrl(
-      toPlanKey(first(params.plan)),
-      fields,
-      `${protocol}://${host}`,
-      captive,
-    ),
+        {checkoutFailed && (
+          <p className="mt-6 text-sm text-red-700">
+            Payment could not be started. Please try again.
+          </p>
+        )}
+
+        <form method="POST" action="/api/checkout" className="mt-8 w-full">
+          {GA_FIELDS.map((key) =>
+            fields[key] ? (
+              <input key={key} type="hidden" name={key} value={fields[key]} />
+            ) : null,
+          )}
+
+          <button
+            type="submit"
+            className="w-full rounded-xl bg-neutral-950 px-5 py-4 font-medium text-white"
+          >
+            Get Online
+          </button>
+        </form>
+      </div>
+    </main>
   );
 }

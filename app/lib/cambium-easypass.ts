@@ -6,18 +6,10 @@ type CambiumMetadata = {
 
 type CambiumLoginResponse = {
   data?: {
-    mType?: number;
-    msgId?: number;
     status?: number;
     Status?: number;
-    prefixQs?: boolean;
-    prefixQS?: boolean;
     expiry?: number;
     Expiry?: number;
-    action?: number;
-    Action?: number;
-    cmac?: string;
-    Cmac?: string;
     msg?: string;
     Msg?: string;
     extURL?: string;
@@ -53,44 +45,43 @@ function requiredValue(
   return trimmed;
 }
 
-function buildCambiumUrl(baseUrl: string, path: string): string {
-  return new URL(path, `${baseUrl.replace(/\/+$/, "")}/`).toString();
+// A leading "/" on the relative path would make `new URL()` discard the
+// base URL's existing pathname, which breaks EasyPass Base URLs that
+// already include a path prefix. Join relative to the base's directory
+// instead so the prefix survives.
+function joinUrl(baseUrl: string, relativePath: string): string {
+  const trimmedBase = baseUrl.trim();
+  const base = trimmedBase.endsWith("/") ? trimmedBase : `${trimmedBase}/`;
+  const path = relativePath.replace(/^\/+/, "");
+
+  return new URL(path, base).toString();
 }
 
 export async function loginToCambiumEasyPass(
   metadata: CambiumMetadata,
 ): Promise<CambiumLoginResult> {
-  const baseUrl = requiredEnv("CAMBIUM_EASYPASS_BASE_URL");
-  const secretKey = requiredEnv("CAMBIUM_EASYPASS_SECRET_KEY");
-  const gaUser = requiredEnv("CAMBIUM_EASYPASS_GA_USER");
-  const gaPass = requiredEnv("CAMBIUM_EASYPASS_GA_PASS");
+  const baseUrl = requiredEnv("CNMAESTRO_BASE_URL");
+  const secretKey = requiredEnv("CNMAESTRO_SECRET_KEY");
+  const gaUser = requiredEnv("CNMAESTRO_GA_USER");
+  const gaPass = requiredEnv("CNMAESTRO_GA_PASS");
 
-  const response = await fetch(
-    buildCambiumUrl(
-      baseUrl,
-      "/api/v1/easypass/external-portal/login",
-    ),
-    {
-      method: "POST",
-      cache: "no-store",
+  const response = await fetch(joinUrl(baseUrl, "ext-portals/login"), {
+    method: "POST",
+    cache: "no-store",
 
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-        "Content-Type": "application/json",
-      },
-
-      body: JSON.stringify({
-        ga_ap_mac: requiredValue(
-          metadata.ga_ap_mac,
-          "ga_ap_mac",
-        ),
-        ga_cmac: requiredValue(metadata.ga_cmac, "ga_cmac"),
-        ga_Qv: requiredValue(metadata.ga_Qv, "ga_Qv"),
-        ga_user: gaUser,
-        ga_pass: gaPass,
-      }),
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      "Content-Type": "application/json",
     },
-  );
+
+    body: JSON.stringify({
+      ga_ap_mac: requiredValue(metadata.ga_ap_mac, "ga_ap_mac"),
+      ga_cmac: requiredValue(metadata.ga_cmac, "ga_cmac"),
+      ga_Qv: requiredValue(metadata.ga_Qv, "ga_Qv"),
+      ga_user: gaUser,
+      ga_pass: gaPass,
+    }),
+  });
 
   let payload: CambiumLoginResponse | undefined;
 
@@ -101,9 +92,7 @@ export async function loginToCambiumEasyPass(
   }
 
   if (!response.ok) {
-    throw new Error(
-      `Cambium login failed with HTTP ${response.status}`,
-    );
+    throw new Error(`cnMaestro login failed with HTTP ${response.status}`);
   }
 
   const data = payload?.data;
@@ -114,8 +103,8 @@ export async function loginToCambiumEasyPass(
 
     throw new Error(
       message
-        ? `Cambium login rejected: ${message}`
-        : `Cambium login rejected with status ${status ?? "unknown"}`,
+        ? `cnMaestro login rejected: ${message}`
+        : `cnMaestro login rejected with status ${status ?? "unknown"}`,
     );
   }
 
