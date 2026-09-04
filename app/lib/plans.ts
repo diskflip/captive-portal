@@ -1,6 +1,6 @@
 export const PLAN = {
-  name: "Event Wi-Fi Test — 1 Minute",
-  description: "Fast internet access for the event",
+  name: "WiFi — 1 min",
+  description: "",
   unitAmount: 100,
   priceLabel: "$1",
 } as const;

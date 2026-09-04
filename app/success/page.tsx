@@ -94,7 +94,7 @@ export default async function SuccessPage({
             </h1>
 
             <p className="mt-3 text-sm text-neutral-600">
-              We couldn&apos;t activate your WiFi yet.
+              Activation failed
             </p>
 
             <Link
