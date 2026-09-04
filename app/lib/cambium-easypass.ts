@@ -45,14 +45,8 @@ function requiredValue(
   return trimmed;
 }
 
-// A leading "/" on the relative path would make `new URL()` discard the
-// base URL's existing pathname, which breaks EasyPass Base URLs that
-// already include a path prefix. Join relative to the base's directory
-// instead so the prefix survives.
-//
-// joinUrl("https://us-e1.api.cloud.cambiumnetworks.com", "api/v1/easypass/external-portal/login")
-//   -> "https://us-e1.api.cloud.cambiumnetworks.com/api/v1/easypass/external-portal/login"
-// Checked by scripts/check-cambium-url.ts.
+// A leading "/" on relativePath would make new URL() discard baseUrl's
+// existing pathname, so the base's path prefix is preserved manually here.
 export function joinUrl(baseUrl: string, relativePath: string): string {
   const trimmedBase = baseUrl.trim();
   const base = trimmedBase.endsWith("/") ? trimmedBase : `${trimmedBase}/`;
