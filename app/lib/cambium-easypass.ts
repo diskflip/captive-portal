@@ -60,10 +60,10 @@ function joinUrl(baseUrl: string, relativePath: string): string {
 export async function loginToCambiumEasyPass(
   metadata: CambiumMetadata,
 ): Promise<CambiumLoginResult> {
-  const baseUrl = requiredEnv("CNMAESTRO_BASE_URL");
-  const secretKey = requiredEnv("CNMAESTRO_SECRET_KEY");
-  const gaUser = requiredEnv("CNMAESTRO_GA_USER");
-  const gaPass = requiredEnv("CNMAESTRO_GA_PASS");
+  const baseUrl = requiredEnv("CAMBIUM_EASYPASS_BASE_URL");
+  const secretKey = requiredEnv("CAMBIUM_EASYPASS_SECRET_KEY");
+  const gaUser = requiredEnv("CAMBIUM_EASYPASS_GA_USER");
+  const gaPass = requiredEnv("CAMBIUM_EASYPASS_GA_PASS");
 
   const response = await fetch(joinUrl(baseUrl, "ext-portals/login"), {
     method: "POST",
