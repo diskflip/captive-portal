@@ -1,6 +1,5 @@
 export const PLAN = {
   name: "WiFi — 1 min",
-  description: "",
   unitAmount: 100,
   priceLabel: "$1",
 } as const;

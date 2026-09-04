@@ -52,7 +52,6 @@ export async function createCheckoutSessionUrl(
           unit_amount: PLAN.unitAmount,
           product_data: {
             name: PLAN.name,
-            description: PLAN.description,
           },
         },
         quantity: 1,
